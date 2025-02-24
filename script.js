@@ -5,6 +5,7 @@ let isPlayingAllAudio = false;
 let currentAudio = null;
 let currentIndividualAudio = null;
 let currentIndividualKey = null;
+let filterFavorites = false; // Status filter favorit
 
 // Fungsi konversi nomor ke angka Arab
 function toArabicNumerals(num) {
@@ -75,7 +76,27 @@ function copyText(text) {
     .catch(err => { console.error("Gagal menyalin teks: ", err); });
 }
 
-// Bookmark
+// Favorit Surah: get & set dari localStorage
+function getFavoriteSurahs() {
+  return JSON.parse(localStorage.getItem('favoriteSurahs') || '[]');
+}
+function setFavoriteSurahs(favArray) {
+  localStorage.setItem('favoriteSurahs', JSON.stringify(favArray));
+}
+// Toggle favorit surah (berdasarkan nomor surah)
+function toggleFavoriteSurah(surahNum, btn) {
+  let favs = getFavoriteSurahs();
+  if (favs.includes(surahNum.toString())) {
+    favs = favs.filter(item => item !== surahNum.toString());
+    btn.innerHTML = '<i class="fa-regular fa-star"></i>';
+  } else {
+    favs.push(surahNum.toString());
+    btn.innerHTML = '<i class="fa-solid fa-star"></i>';
+  }
+  setFavoriteSurahs(favs);
+  renderSuratList(allSurat);
+}
+
 function setBookmark(key, btn) {
   const currentBookmark = localStorage.getItem('lastReadAyat');
   if (currentBookmark === key) {
@@ -91,6 +112,7 @@ function setBookmark(key, btn) {
   updateGlobalBookmarkBoth();
 }
 
+// Update tombol global bookmark (di halaman depan & detail)
 function updateGlobalBookmarkBoth() {
   const bookmarkKey = localStorage.getItem('lastReadAyat');
   const surahName = localStorage.getItem('lastReadSurah');
@@ -116,6 +138,7 @@ function updateGlobalBookmarkBoth() {
   }
 }
 
+// Event listener tombol global bookmark
 document.getElementById('globalBookmarkFrontBtn').addEventListener('click', function() {
   goToBookmark();
 });
@@ -152,7 +175,7 @@ function goToBookmark() {
   }
 }
 
-// Memuat detail surah (ayat)
+// Fungsi untuk memuat detail surah (ayat)
 function loadSurah(surah, index) {
   stopAllAudio();
   stopIndividualAudio();
@@ -201,9 +224,9 @@ function loadSurah(surah, index) {
             <p class="arabic">
               ${ayat.teksArab}
               <span class="arabic-number-badge">${toArabicNumerals(ayat.nomorAyat)}</span>
-            </p>
-            <p><em>${ayat.teksLatin}</em></p>
-            ${ayat.teksIndonesia ? `<p>${ayat.teksIndonesia}</p>` : ''}
+            </p><br>
+            <p class="teksLatin"><em>${ayat.teksLatin}</em></p>
+            ${ayat.teksIndonesia ? `<p>${ayat.teksIndonesia}</p> <br>` : ''}
             <div class="icons">
               <button title="Putar Audio Individual" data-key="${uniqueKey}" onclick="playAudioIndividual('${ayat.audio["01"]}', this, '${uniqueKey}')">
                 <i class="fa-solid fa-volume-up"></i>
@@ -229,8 +252,13 @@ function loadSurah(surah, index) {
     });
 }
 
-// Render daftar surat (tanpa fitur favorite)
+// Render daftar surat (dengan fitur favorit di setiap card)
 function renderSuratList(suratArray) {
+  // Jika filter favorit aktif, hanya tampilkan surah yang difavoritkan
+  if (filterFavorites) {
+    const favs = getFavoriteSurahs();
+    suratArray = suratArray.filter(s => favs.includes(s.nomor.toString()));
+  }
   const suratList = document.getElementById('suratList');
   suratList.innerHTML = '';
   suratArray.forEach((surah, index) => {
@@ -240,9 +268,12 @@ function renderSuratList(suratArray) {
       <div class="card-icon">${surah.nomor}</div>
       <div class="card-content">
         <div class="card-header">
-          <h2>${surah.namaLatin} (<span class="namaArab">${surah.nama || ''}</span>) - ${surah.arti}</h2>
+          <h2>${surah.namaLatin} (<span class="namaArab">${surah.nama || ''}</span>)</h2>
+          <button class="favorite-surah-btn" data-id="${surah.nomor}" title="Favorit" onclick="event.stopPropagation(); toggleFavoriteSurah('${surah.nomor}', this)">
+            ${ getFavoriteSurahs().includes(surah.nomor.toString()) ? '<i class="fa-solid fa-star"></i>' : '<i class="fa-regular fa-star"></i>' }
+          </button>
         </div>
-        <p>${surah.jumlahAyat} | ${surah.tempatTurun}</p>
+        <p class="jumlahAyat">${surah.jumlahAyat} | ${surah.tempatTurun}</p>
       </div>
     `;
     card.addEventListener('click', () => {
@@ -272,6 +303,13 @@ document.getElementById('searchSurah').addEventListener('input', function() {
   renderSuratList(filteredSurat);
 });
 
+// Event listener tombol filter favorit di samping pencarian
+document.getElementById('filterFavoritesBtn').addEventListener('click', function() {
+  filterFavorites = !filterFavorites;
+  this.innerHTML = filterFavorites ? '<i class="fa-solid fa-star"></i>' : '<i class="fa-regular fa-star"></i>';
+  renderSuratList(allSurat);
+});
+
 // Navigasi di halaman detail surah
 document.getElementById('prevSurahBtn').addEventListener('click', function() {
   if (currentSurahIndex > 0) {
@@ -282,7 +320,7 @@ document.getElementById('prevSurahBtn').addEventListener('click', function() {
 });
 document.getElementById('nextSurahBtn').addEventListener('click', function() {
   if (currentSurahIndex < allSurat.length - 1) {
-    loadSurah(allSurat[currentSurahIndex + 1], currentSuratIndex + 1);
+    loadSurah(allSurat[currentSurahIndex + 1], currentSurahIndex + 1);
   } else {
     alert("Surah berikutnya tidak tersedia.");
   }
